@@ -32,3 +32,19 @@ Develop SQL-based analytics to deliver detailed insights into:
 - **Customer Behavior**
 - **Product Performance**
 - **Sales Trends**
+
+## 📜 License
+
+This project is licensed under the **MIT License** — you are free to use, 
+modify, and distribute this project for personal or commercial purposes.
+See the [LICENSE](LICENSE) file for full details.
+
+---
+
+## 👋 About Me
+
+Hi! I'm Logan, an aspiring data professional passionate about data 
+engineering and analytics. I created this project as part of my SQL learning 
+journey to demonstrate real-world data warehouse skills.
+
+
