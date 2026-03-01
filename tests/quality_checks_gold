@@ -1,0 +1,101 @@
+/*
+================================================================================
+Script:         gold_quality_checks.sql
+Author:         [Your Name]
+Created:        2026-02-27
+Last Modified:  2026-02-27
+Description:    Quality checks for all Gold layer views. Validates data
+                integration integrity across the Star Schema after views have
+                been created. Checks cover foreign key alignment and duplicate
+                detection in both dimension views.
+
+Views Checked:
+    - gold.fact_sales       | Foreign key integrity to both dimension views
+    - gold.dim_customers    | Duplicate customer records post-integration
+    - gold.dim_products     | Duplicate product records post-integration
+
+Expected Results:
+    - All queries should return zero rows if the Gold layer is clean
+================================================================================
+*/
+
+-- ==============================================================================
+-- SECTION 1: Foreign Key Integrity
+-- Ensure all keys in fact_sales resolve to a matching record in each dimension
+-- ==============================================================================
+
+-- Check 1: Orphaned customer keys in fact_sales
+-- Any row returned means a sale exists with no matching customer dimension record
+SELECT *
+FROM gold.fact_sales f
+LEFT JOIN gold.dim_customers c
+    ON c.customer_key = f.customer_key
+WHERE c.customer_key IS NULL;
+
+-- Check 2: Orphaned product keys in fact_sales
+-- Any row returned means a sale exists with no matching product dimension record
+SELECT *
+FROM gold.fact_sales f
+LEFT JOIN gold.dim_products p
+    ON p.product_key = f.product_key
+WHERE p.product_key IS NULL;
+
+-- ==============================================================================
+-- SECTION 2: Duplicate Detection — gold.dim_products
+-- Validates that the integration of crm_prd_info and erp_px_cat_g1v2 produces
+-- a unique record per product key after filtering out historical records
+-- ==============================================================================
+
+-- Check 3: Duplicate product keys in dim_products source query
+-- Any prd_key with COUNT > 1 indicates duplicate records slipping through
+SELECT prd_key, COUNT(*)
+FROM (
+    SELECT
+        pn.prd_id,
+        pn.cat_id,
+        pn.prd_key,
+        pn.prd_nm,
+        pn.prd_cost,
+        pn.prd_line,
+        pn.prd_start_dt,
+        pn.prd_end_dt,
+        pc.cat,
+        pc.subcat,
+        pc.maintenance
+    FROM silver.crm_prd_info pn
+    LEFT JOIN silver.erp_px_cat_g1v2 pc
+        ON pn.cat_id = pc.id
+    WHERE pn.prd_end_dt IS NULL -- Filter out all historical data; current products only
+) t
+GROUP BY prd_key
+HAVING COUNT(*) > 1;
+
+-- ==============================================================================
+-- SECTION 3: Duplicate Detection — gold.dim_customers
+-- Validates that the integration of crm_cust_info, erp_cust_az12, and
+-- erp_loc_a101 produces a unique record per customer ID
+-- ==============================================================================
+
+-- Check 4: Duplicate customer IDs in dim_customers source query
+-- Any cst_id with COUNT > 1 indicates duplicate records slipping through
+SELECT cst_id, COUNT(*)
+FROM (
+    SELECT
+        ci.cst_id,
+        ci.cst_key,
+        ci.cst_firstname,
+        ci.cst_lastname,
+        ci.cst_material_status  AS cst_marital_status,
+        ci.cst_gndr,
+        ci.cst_create_date,
+        ca.bdate,
+        ca.gen,
+        la.cntry
+    FROM silver.crm_cust_info ci
+    LEFT JOIN silver.erp_cust_az12 ca
+        ON ci.cst_key = ca.cid
+    LEFT JOIN silver.erp_loc_a101 la
+        ON ci.cst_key = la.cid
+) t
+GROUP BY cst_id
+HAVING COUNT(*) > 1;
